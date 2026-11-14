@@ -1,0 +1,47 @@
+name: 🔄 Sync upstream maillab/cloud-mail
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  sync:
+    name: ⬇️ Merge upstream into main
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🚚 Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔀 Merge upstream/main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream https://github.com/maillab/cloud-mail.git
+          git fetch upstream main
+          git checkout main
+
+          BEFORE=$(git rev-parse HEAD)
+          git merge --no-edit upstream/main
+          AFTER=$(git rev-parse HEAD)
+
+          if [ "$BEFORE" = "$AFTER" ]; then
+            echo "✅ Already up to date."
+            exit 0
+          fi
+
+          git push origin main
+          echo "SYNCED=true" >> "$GITHUB_ENV"
+          echo "✅ Merged upstream and pushed to main."
+
+      - name: 🚀 Trigger deploy workflow
+        if: env.SYNCED == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh workflow run deploy-cloudflare.yml --ref main
